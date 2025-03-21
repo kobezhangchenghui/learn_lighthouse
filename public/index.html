@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>性能数据统计</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        .charts-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .chart-container {
+            width: calc(50% - 10px);
+            height: 400px;
+            margin: 10px 0;
+            padding: 20px 15px 30px 15px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            box-sizing: border-box;
+        }
+
+        @media (max-width: 768px) {
+            .chart-container {
+                width: 100%;
+            }
+        }
+
+        .url-selector-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 999;
+            background: white;
+            padding: 8px 15px;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        #url-select {
+            padding: 6px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            min-width: 200px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="url-selector-container">
+        <select id="url-select">
+            <option value="all">全部URL</option>
+        </select>
+    </div>
+    
+    <div class="charts-grid">
+        <div id="performance-score-chart" class="chart-container"></div>
+        <div id="fcp-chart" class="chart-container"></div>
+        <div id="lcp-chart" class="chart-container"></div>
+        <div id="tbt-chart" class="chart-container"></div>
+        <div id="cls-chart" class="chart-container"></div>
+        <div id="interactive-chart" class="chart-container"></div>
+        <div id="speed-index-chart" class="chart-container"></div>
+    </div>
+
+    <script>
+        // 初始化图表
+        const charts = {
+            performanceScore: echarts.init(document.getElementById('performance-score-chart')),
+            fcp: echarts.init(document.getElementById('fcp-chart')),
+            lcp: echarts.init(document.getElementById('lcp-chart')),
+            tbt: echarts.init(document.getElementById('tbt-chart')),
+            cls: echarts.init(document.getElementById('cls-chart')),
+            interactive: echarts.init(document.getElementById('interactive-chart')),
+            speedIndex: echarts.init(document.getElementById('speed-index-chart'))
+        };
+
+        // 获取数据并渲染图表
+        async function fetchDataAndRender(selectedUrl = 'all') {
+            try {
+                const response = await fetch('/api/performance_metrics');
+                const data = await response.json();
+                
+                // 动态填充URL选项
+                const urlSelect = document.getElementById('url-select');
+                const urls = [...new Set(data.map(item => item.url))];
+                if(urlSelect.options.length <= 1) {
+                    urls.forEach(url => {
+                        const option = document.createElement('option');
+                        option.value = url;
+                        option.textContent = url;
+                        urlSelect.appendChild(option);
+                    });
+                }
+
+                // 按URL过滤数据
+                const filteredData = selectedUrl === 'all' 
+                    ? data 
+                    : data.filter(item => item.url === selectedUrl);
+
+                // 处理时间序列数据
+                const timeData = filteredData.map(item => new Date(item.created_at).toLocaleString());
+                const performanceScore = filteredData.map(item => item.performance_score);
+                const fcp = filteredData.map(item => parseFloat(item.fcp.replace(/\s*s/g, '')));
+                const lcp = filteredData.map(item => parseFloat(item.lcp));
+                const tbt = filteredData.map(item => parseFloat(item.tbt));
+                const cls = filteredData.map(item => parseFloat(item.cls));
+                const interactive = filteredData.map(item => parseFloat(item.interactive));
+                const speedIndex = filteredData.map(item => parseFloat(item.speed_index));
+
+                // 配置图表选项
+                // 计算平均值
+                const calculateAverage = arr => {
+                    const validData = arr.filter(v => !isNaN(v));
+                    return validData.length ? (validData.reduce((a, b) => a + b, 0) / validData.length).toFixed(2) : 0;
+                };
+
+                const createOption = (metricName, data, unit = '') => ({
+                    title: {
+                        text: unit ? `${metricName} (${unit})` : metricName,
+                        left: 'left',
+                        textStyle: {
+                            fontSize: 16,
+                            fontWeight: 'bold'
+                        },
+                        subtext: `平均值: ${calculateAverage(data)}${unit}`,
+                        subtextStyle: {
+                            fontSize: 12,
+                            color: '#666',
+                            align: 'right',
+                            verticalAlign: 'bottom'
+                        },
+                        padding: [5, 0, 15, 0]
+                    },
+                    tooltip: { trigger: 'axis' },
+                    legend: { data: [metricName] },
+                    xAxis: {
+                        type: 'category',
+                        data: timeData,
+                        axisLabel: { formatter: value => new Date(value).toLocaleDateString() }
+                    },
+                    yAxis: {
+                        type: 'value',
+                        name: unit,
+                        axisLabel: {
+                            formatter: value => unit ? `${value} ${unit}` : value
+                        }
+                    },
+                    series: [{
+                        name: metricName,
+                        type: 'line',
+                        data: data,
+                        smooth: true
+                    }]
+                });
+
+
+                Object.entries({
+                    'Performance Score': performanceScore,
+                    'FCP': fcp,
+                    'LCP': lcp,
+                    'TBT': tbt,
+                    'CLS': cls,
+                    'Interactive': interactive,
+                    'Speed Index': speedIndex
+                }).forEach(([metric, data], idx) => {
+                    const unitMap = {
+                        'FCP': 's',
+                        'LCP': 's',
+                        'TBT': 'ms',
+                        'CLS': '',
+                        'Interactive': 's',
+                        'Speed Index': 's'
+                    };
+                    charts[Object.keys(charts)[idx]].setOption(createOption(
+                        metric,
+                        data,
+                        unitMap[metric]
+                    ));
+                });
+
+                window.addEventListener('resize', () => {
+                    Object.values(charts).forEach(chart => chart.resize());
+                });
+            } catch (error) {
+                console.error('数据获取失败:', error);
+            }
+        }
+
+        // 初始化加载数据
+fetchDataAndRender();
+
+// 监听URL选择变化
+document.getElementById('url-select').addEventListener('change', (e) => {
+    fetchDataAndRender(e.target.value);
+});
+    </script>
+</body>
+
+</html>
