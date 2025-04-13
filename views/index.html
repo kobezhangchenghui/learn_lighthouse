@@ -54,6 +54,22 @@
         </select>
     </div>
     
+    <div id="summary-table" class="chart-container" style="display:none;">
+        <table class="metrics-table">
+            <thead>
+                <tr>
+                    <th>URL</th>
+                    <th>Performance Score</th>
+                    <th>FCP (s)</th>
+                    <th>LCP (s)</th>
+                    <th>TBT (ms)</th>
+                    <th>CLS</th>
+                </tr>
+            </thead>
+            <tbody id="summary-body"></tbody>
+        </table>
+    </div>
+    
     <div class="charts-grid">
         <div id="performance-score-chart" class="chart-container"></div>
         <div id="fcp-chart" class="chart-container"></div>
@@ -195,7 +211,84 @@ fetchDataAndRender();
 document.getElementById('url-select').addEventListener('change', (e) => {
     fetchDataAndRender(e.target.value);
 });
+
+        const updateDisplay = (showTable) => {
+            document.querySelectorAll('.chart-container:not(#summary-table)').forEach(el => {
+                el.style.display = showTable ? 'none' : 'block';
+            });
+            document.getElementById('summary-table').style.display = showTable ? 'block' : 'none';
+        };
+
+        // 生成汇总表格数据
+        const generateSummaryData = (data) => {
+            const urlGroups = data.reduce((acc, item) => {
+                acc[item.url] = acc[item.url] || [];
+                acc[item.url].push(item);
+                return acc;
+            }, {});
+
+            return Object.entries(urlGroups).map(([url, items]) => {
+                const metrics = ['performance_score', 'fcp', 'lcp', 'tbt', 'cls'];
+                const averages = metrics.map(metric => {
+                    const values = items.map(item => 
+                        parseFloat(item[metric].replace(/[^0-9.]/g, ''))
+                    ).filter(v => !isNaN(v));
+                    return values.length ? (values.reduce((a, b) => a + b, 0) / values.length).toFixed(2) : 'N/A';
+                });
+                return { url, ...averages };
+            });
+        };
+
+        // 在fetchDataAndRender函数中添加
+        if(selectedUrl === 'all') {
+            const summaryData = generateSummaryData(data);
+            const tbody = document.getElementById('summary-body');
+            tbody.innerHTML = summaryData.map(item => `
+                <tr>
+                    <td>${item.url}</td>
+                    <td>${item[0]}</td>
+                    <td>${item[1]}</td>
+                    <td>${item[2]}</td>
+                    <td>${item[3]}</td>
+                    <td>${item[4]}</td>
+                </tr>
+            `).join('');
+            updateDisplay(true);
+        } else {
+            updateDisplay(false);
+        }
     </script>
 </body>
 
 </html>
+
+
+.metrics-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+    background: white;
+}
+
+.metrics-table th,
+.metrics-table td {
+    padding: 12px 15px;
+    border: 1px solid #ddd;
+    text-align: left;
+}
+
+.metrics-table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+}
+
+.metrics-table tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+@media (max-width: 768px) {
+    .metrics-table {
+        display: block;
+        overflow-x: auto;
+    }
+}

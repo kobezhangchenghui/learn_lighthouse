@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>性能数据看板</title>
+    <link rel="stylesheet" href="/assets/css/dashboard.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <header>
+        <h1>网站性能数据看板</h1>
+        <div class="filters">
+            <select id="websiteSelect">
+                <option value="">选择监控网站</option>
+            </select>
+            <input type="date" id="dateFilter">
+        </div>
+    </header>
+
+    <main>
+        <div class="chart-container">
+            <canvas id="performanceChart"></canvas>
+        </div>
+        <div class="metrics-grid">
+            <!-- 指标卡片动态加载 -->
+        </div>
+    </main>
+
+    <script src="/assets/js/dashboard.js"></script>
+</body>
+</html>
